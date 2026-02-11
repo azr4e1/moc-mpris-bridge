@@ -1,0 +1,79 @@
+package main
+
+import (
+	"log"
+	"os"
+	"os/signal"
+	"syscall"
+	"time"
+
+	"github.com/godbus/dbus/v5"
+)
+
+func MPRISLoop() error {
+	conn, err := dbus.ConnectSessionBus()
+	if err != nil {
+		return err
+	}
+	defer conn.Close()
+	log.Println("DBus connection created")
+
+	mp, err := NewMocP()
+	if err != nil {
+		return err
+	}
+	log.Println("MocP instance initialized")
+
+	mp2, err := NewMediaPlayer2(conn, mp)
+	if err != nil {
+		return err
+	}
+	log.Println("MediaPlayer2 instance created")
+
+	mp2p, err := NewMediaPlayer2Player(conn, mp)
+	if err != nil {
+		return err
+	}
+	log.Println("MediaPlayer2.Player instance created")
+
+	// Register name
+	reply, err := conn.RequestName("org.mpris.MediaPlayer2.mocp-mpris-bridge", dbus.NameFlagReplaceExisting)
+	if err != nil {
+		return err
+	}
+	if reply != dbus.RequestNameReplyPrimaryOwner {
+		return err
+	}
+	log.Println("mocp-mpris-bridge name successfully registered")
+
+	err = conn.Export(mp2, "/org/mpris/MediaPlayer2", "org.mpris.MediaPlayer2")
+	if err != nil {
+		return err
+	}
+	log.Println("MediaPlayer2 interface exported")
+
+	err = conn.Export(mp2p, "/org/mpris/MediaPlayer2", "org.mpris.MediaPlayer2.Player")
+	if err != nil {
+		return err
+	}
+	log.Println("MediaPlayer2.Player interface exported")
+
+	c := make(chan os.Signal, 1)
+	signal.Notify(c, os.Interrupt, syscall.SIGINT)
+
+	go func() {
+		<-c
+		log.Println("Interruption...")
+		conn.Close()
+		os.Exit(1)
+	}()
+
+	log.Println("Starting loop...")
+	for {
+		err := mp2p.update()
+		if err != nil {
+			return err
+		}
+		time.Sleep(time.Second)
+	}
+}
