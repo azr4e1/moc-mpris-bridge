@@ -2,6 +2,7 @@ package main
 
 import (
 	"log"
+	"time"
 
 	"github.com/godbus/dbus/v5"
 )
@@ -12,19 +13,25 @@ func main() {
 		log.Fatal(err)
 	}
 	defer conn.Close()
+	log.Println("DBus connection created")
 
 	mp, err := NewMocP()
 	if err != nil {
 		log.Fatal(err)
 	}
+	log.Println("MocP instance initialized")
+
 	mp2, err := NewMediaPlayer2(conn, mp)
 	if err != nil {
 		log.Fatal(err)
 	}
+	log.Println("MediaPlayer2 instance created")
+
 	mp2p, err := NewMediaPlayer2Player(conn, mp)
 	if err != nil {
 		log.Fatal(err)
 	}
+	log.Println("MediaPlayer2.Player instance created")
 
 	reply, err := conn.RequestName("org.mpris.MediaPlayer2.mocp-mpris-bridge", dbus.NameFlagReplaceExisting)
 	if err != nil {
@@ -33,15 +40,26 @@ func main() {
 	if reply != dbus.RequestNameReplyPrimaryOwner {
 		log.Fatal("Name already taken")
 	}
+	log.Println("mocp-mpris-bridge name successfully registered")
 
 	err = conn.Export(mp2, "/org/mpris/MediaPlayer2", "org.mpris.MediaPlayer2")
 	if err != nil {
 		log.Fatal(err)
 	}
+	log.Println("MediaPlayer2 interface exported")
+
 	err = conn.Export(mp2p, "/org/mpris/MediaPlayer2", "org.mpris.MediaPlayer2.Player")
 	if err != nil {
 		log.Fatal(err)
 	}
+	log.Println("MediaPlayer2.Player interface exported")
 
-	select {}
+	log.Println("Starting loop...")
+	for {
+		err := mp2p.update()
+		if err != nil {
+			panic(err)
+		}
+		time.Sleep(time.Second / 2)
+	}
 }
