@@ -3,18 +3,21 @@ package main
 import (
 	"os"
 
+	"github.com/godbus/dbus/v5"
 	"github.com/godbus/dbus/v5/prop"
 )
 
 type MediaPlayer2 struct {
-	mp    *MocP
-	Props map[string]*prop.Prop
+	mp         *MocP
+	conn       *dbus.Conn
+	properties *prop.Properties
 }
 
-func NewMediaPlayer2(mp *MocP) *MediaPlayer2 {
+func NewMediaPlayer2(conn *dbus.Conn, mp *MocP) (*MediaPlayer2, error) {
 	mp2 := &MediaPlayer2{}
 	mp2.mp = mp
-	mp2.Props = map[string]*prop.Prop{
+	mp2.conn = conn
+	props := map[string]*prop.Prop{
 		"CanQuit":          newProp(true, nil),
 		"Fullscreen":       newProp(false, nil),
 		"CanSetFullscreen": newProp(false, nil),
@@ -23,7 +26,12 @@ func NewMediaPlayer2(mp *MocP) *MediaPlayer2 {
 		"Identity":         newProp("Media On Console", nil),
 	}
 
-	return mp2
+	var err error
+	mp2.properties, err = prop.Export(mp2.conn, "/org/mpris/MediaPlayer2", map[string]map[string]*prop.Prop{
+		"org.mpris.MediaPlayer2": props,
+	})
+
+	return mp2, err
 }
 
 func (m *MediaPlayer2) Raise() {
