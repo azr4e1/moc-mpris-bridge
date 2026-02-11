@@ -44,5 +44,6 @@ func (m *MediaPlayer2) Raise() {
 
 func (m *MediaPlayer2) Quit() {
 	m.mp.Exit()
+	m.conn.Close()
 	os.Exit(0)
 }
