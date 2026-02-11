@@ -1,0 +1,13 @@
+[Unit]
+Description=Music on Console MPRIS bridge
+Requires=dbus.service
+After=dbus.service
+
+[Service]
+Type=simple
+ExecStart=/usr/bin/moc-mpris-bridge
+Restart=always
+RestartSec=10
+
+[Install]
+WantedBy=default.target
