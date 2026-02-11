@@ -8,7 +8,7 @@ license=('MIT')
 depends=('moc-pulse')
 makedepends=('go')
 source=("$pkgname-$pkgver.tar.gz::$url/archive/v$pkgver.tar.gz")
-sha256sums=('SKIP')  # temporary
+sha256sums=('0f03666c579eff9ba2d4e849f15a9ae723f2d6386e6d9182376c3e5a474cd892')
 
 build() {
     cd "$pkgname-$pkgver"  # GitHub creates this directory
