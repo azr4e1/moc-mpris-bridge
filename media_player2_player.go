@@ -4,12 +4,15 @@ import (
 	"errors"
 	"log"
 	"reflect"
+	"sync"
+	"time"
 
 	"github.com/godbus/dbus/v5"
 	"github.com/godbus/dbus/v5/prop"
 )
 
 type MediaPlayer2Player struct {
+	lock       sync.Mutex
 	mp         *MocP
 	conn       *dbus.Conn
 	propValues map[string]any
@@ -18,15 +21,16 @@ type MediaPlayer2Player struct {
 
 func NewMediaPlayer2Player(conn *dbus.Conn, mp *MocP) (*MediaPlayer2Player, error) {
 	mp2p := &MediaPlayer2Player{}
+	mp2p.lock = sync.Mutex{}
 	mp2p.mp = mp
 	mp2p.conn = conn
 
 	var err error
 	mp2p.propValues, mp2p.properties, err = mp2p.exportProps()
-
 	if err != nil {
 		return nil, err
 	}
+	log.Println("MediaPlayer2.Player properties exported")
 
 	return mp2p, nil
 }
@@ -74,14 +78,12 @@ func (mp2p *MediaPlayer2Player) exportProps() (map[string]any, *prop.Properties,
 }
 
 func (mp2p *MediaPlayer2Player) update() *dbus.Error {
+	mp2p.lock.Lock()
 	err := mp2p.mp.UpdateInfo()
 	if err != nil {
 		return dbus.MakeFailedError(err)
 	}
 	for key, value := range mp2p.propValues {
-		if key == "Position" {
-			log.Printf("Position is %d\n", value)
-		}
 		newVal := mp2p.getCurrVal(key)
 		if !reflect.DeepEqual(newVal, value) {
 			mp2p.propValues[key] = newVal
@@ -89,6 +91,7 @@ func (mp2p *MediaPlayer2Player) update() *dbus.Error {
 			log.Printf("MediaPlayer2.Player.%s was updated\n", key)
 		}
 	}
+	mp2p.lock.Unlock()
 	return nil
 }
 
@@ -131,24 +134,38 @@ func (mp2p *MediaPlayer2Player) getCurrVal(key string) any {
 
 // Methods
 func (mp2p *MediaPlayer2Player) Next() *dbus.Error {
+	if !mp2p.getCanGoNext() {
+		log.Println("MediaPlayer2.Player.Next is not allowed")
+		return nil
+	}
 	log.Println("MediaPlayer2.Player.Next was called")
 	err := mp2p.mp.Next()
 	if err != nil {
 		return dbus.MakeFailedError(err)
 	}
+	time.Sleep(time.Second / 2)
 	return mp2p.update()
 }
 
 func (mp2p *MediaPlayer2Player) Previous() *dbus.Error {
+	if !mp2p.getCanGoPrevious() {
+		log.Println("MediaPlayer2.Player.Previous is not allowed")
+		return nil
+	}
 	log.Println("MediaPlayer2.Player.Previous was called")
 	err := mp2p.mp.Previous()
 	if err != nil {
 		return dbus.MakeFailedError(err)
 	}
+	time.Sleep(time.Second / 2)
 	return mp2p.update()
 }
 
 func (mp2p *MediaPlayer2Player) Pause() *dbus.Error {
+	if !mp2p.getCanPause() {
+		log.Println("MediaPlayer2.Player.Pause is not allowed")
+		return nil
+	}
 	log.Println("MediaPlayer2.Player.Pause was called")
 	err := mp2p.mp.Pause()
 	if err != nil {
@@ -158,8 +175,12 @@ func (mp2p *MediaPlayer2Player) Pause() *dbus.Error {
 }
 
 func (mp2p *MediaPlayer2Player) PlayPause() *dbus.Error {
+	if !mp2p.getCanPlay() || !mp2p.getCanPause() {
+		log.Println("MediaPlayer2.Player.PlayPause is not allowed")
+		return nil
+	}
 	log.Println("MediaPlayer2.Player.PlayPause was called")
-	err := mp2p.mp.TooglePause()
+	err := mp2p.mp.TogglePause()
 	if err != nil {
 		return dbus.MakeFailedError(err)
 	}
@@ -176,6 +197,10 @@ func (mp2p *MediaPlayer2Player) Stop() *dbus.Error {
 }
 
 func (mp2p *MediaPlayer2Player) Play() *dbus.Error {
+	if !mp2p.getCanPlay() {
+		log.Println("MediaPlayer2.Player.Play is not allowed")
+		return nil
+	}
 	log.Println("MediaPlayer2.Player.Play was called")
 	err := mp2p.mp.Unpause()
 	if err != nil {
@@ -185,6 +210,10 @@ func (mp2p *MediaPlayer2Player) Play() *dbus.Error {
 }
 
 func (mp2p *MediaPlayer2Player) Seek(microseconds int64) *dbus.Error {
+	if !mp2p.getCanSeek() {
+		log.Println("MediaPlayer2.Player.Seek is not allowed")
+		return nil
+	}
 	log.Println("MediaPlayer2.Player.Seek was called")
 	seconds := int(microseconds) / 1000000
 	err := mp2p.mp.Seek(seconds)
@@ -215,7 +244,7 @@ func (mp2p *MediaPlayer2Player) SetPosition(trackId dbus.ObjectPath, microsecond
 		return dbus.MakeFailedError(err)
 	}
 
-	mp2p.Seeked(microseconds)
+	err = mp2p.Seeked(microseconds)
 	if err != nil {
 		return dbus.MakeFailedError(err)
 	}
@@ -232,7 +261,7 @@ func (mp2p *MediaPlayer2Player) SetPosition(trackId dbus.ObjectPath, microsecond
 
 func (mp2p *MediaPlayer2Player) Seeked(position int64) error {
 	log.Println("MediaPlayer2.Player.Seeked was signalled")
-	err := mp2p.conn.Emit("/org/mpris/MediaPlayer2", "org.mpris.MediaPlayer2.Player.Seeked", dbus.MakeVariant(position))
+	err := mp2p.conn.Emit("/org/mpris/MediaPlayer2", "org.mpris.MediaPlayer2.Player.Seeked", position)
 
 	return err
 }
