@@ -1,6 +1,7 @@
 package main
 
 import (
+	"log"
 	"os"
 
 	"github.com/godbus/dbus/v5"
@@ -30,8 +31,12 @@ func NewMediaPlayer2(conn *dbus.Conn, mp *MocP) (*MediaPlayer2, error) {
 	mp2.properties, err = prop.Export(mp2.conn, "/org/mpris/MediaPlayer2", map[string]map[string]*prop.Prop{
 		"org.mpris.MediaPlayer2": props,
 	})
+	if err != nil {
+		return nil, err
+	}
+	log.Println("MediaPlayer2 properties exported")
 
-	return mp2, err
+	return mp2, nil
 }
 
 func (m *MediaPlayer2) Raise() {

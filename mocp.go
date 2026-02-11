@@ -202,7 +202,7 @@ func (mp *MocP) Play() error {
 	return cmd.Run()
 }
 
-func (mp *MocP) TooglePause() error {
+func (mp *MocP) TogglePause() error {
 	if mp == nil {
 		return nil
 	}
@@ -214,7 +214,7 @@ func (mp *MocP) TooglePause() error {
 			return err
 		}
 	case "Paused":
-		err := mp.Play()
+		err := mp.Unpause()
 		if err != nil {
 			return err
 		}
@@ -327,6 +327,7 @@ func (mp *MocP) GetMetadata() map[string]any {
 	}
 	if val, ok := mp.metadata[File]; ok {
 		metadata["xesam:url"] = val
+		metadata["mpris:artUrl"] = val
 	}
 	if val, ok := mp.metadata[SongTitle]; ok {
 		metadata["xesam:title"] = val
@@ -412,7 +413,7 @@ func (mp *MocP) CanSeek() bool {
 	if mp == nil {
 		return false
 	}
-	if _, ok := mp.metadata[SongTitle]; ok {
+	if _, ok := mp.metadata[CurrentSec]; ok {
 		return true
 	}
 	return false
@@ -482,8 +483,9 @@ func parseDuration(duration string) (time.Duration, error) {
 		}
 		seconds += secVal * int(math.Pow(60.0, float64(length)-float64(i)))
 	}
+	secondDuration := time.Second * time.Duration(seconds)
 
-	return time.Duration(seconds), nil
+	return secondDuration, nil
 }
 
 func amixerGetVolume() (float64, error) {
