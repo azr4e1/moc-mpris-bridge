@@ -221,7 +221,10 @@ func (mp2p *MediaPlayer2Player) Seek(microseconds int64) *dbus.Error {
 		return dbus.MakeFailedError(err)
 	}
 
-	current_seconds := mp2p.mp.GetInfo(CurrentSec).(int)
+	current_seconds, ok := mp2p.mp.GetInfo(CurrentSec).(int)
+	if !ok {
+		return nil
+	}
 	current_microseconds := int64(current_seconds+seconds) * 1000000
 	err = mp2p.Seeked(current_microseconds)
 	if err != nil {
