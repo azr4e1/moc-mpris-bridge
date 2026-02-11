@@ -1,5 +1,5 @@
 pkgname=moc-mpris-bridge
-pkgver=0.1.0
+pkgver=0.1.1
 pkgrel=1
 pkgdesc="MPRIS bridge for Music On Console"
 arch=('x86_64' 'aarch64')

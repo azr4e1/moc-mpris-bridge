@@ -1,6 +1,6 @@
 version: 2
 builds:
-  - main: ./main.go
+  - main: .
     binary: moc-mpris-bridge
     goos:
       - linux
