@@ -2,6 +2,9 @@ package main
 
 import (
 	"log"
+	"os"
+	"os/signal"
+	"syscall"
 	"time"
 
 	"github.com/godbus/dbus/v5"
@@ -54,12 +57,22 @@ func main() {
 	}
 	log.Println("MediaPlayer2.Player interface exported")
 
+	c := make(chan os.Signal, 1)
+	signal.Notify(c, os.Interrupt, syscall.SIGINT)
+
+	go func() {
+		<-c
+		log.Println("Interruption...")
+		conn.Close()
+		os.Exit(1)
+	}()
+
 	log.Println("Starting loop...")
 	for {
 		err := mp2p.update()
 		if err != nil {
 			panic(err)
 		}
-		time.Sleep(time.Second / 2)
+		time.Sleep(time.Second)
 	}
 }
