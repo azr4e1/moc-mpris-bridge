@@ -44,7 +44,7 @@ go build -o moc-mpris-bridge .
 
 ### From releases
 
-Pre-built binaries for linux/amd64 and linux/arm64 are available on the [GitHub Releases](https://github.com/azre1/moc-mpris-bridge/releases) page.
+Pre-built binaries for linux/amd64 and linux/arm64 are available on the [GitHub Releases](https://github.com/azr4e1/moc-mpris-bridge/releases) page.
 
 ## Usage
 
