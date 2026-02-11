@@ -8,6 +8,8 @@ import (
 	"strconv"
 	"strings"
 	"time"
+
+	"github.com/godbus/dbus/v5"
 )
 
 type MocP struct {
@@ -321,7 +323,7 @@ func (mp *MocP) GetMetadata() map[string]any {
 	metadata := make(map[string]any)
 
 	if val, ok := mp.metadata[TotalSec]; ok {
-		metadata["mpris:length"] = val
+		metadata["mpris:length"] = int64(val.(int)) * 1000000
 	}
 	if val, ok := mp.metadata[File]; ok {
 		metadata["xesam:url"] = val
@@ -335,6 +337,7 @@ func (mp *MocP) GetMetadata() map[string]any {
 	if val, ok := mp.metadata[Album]; ok {
 		metadata["xesam:album"] = val
 	}
+	metadata["mpris:trackid"] = dbus.ObjectPath("/org/moc_mpris_bridge/track/1")
 	// TODO: implement musicbrainz album art fetch
 	// if val, ok := mp.metadata[]; ok {
 	// 	metadata["mpris:artUrl"] = val
@@ -413,6 +416,15 @@ func (mp *MocP) CanSeek() bool {
 		return true
 	}
 	return false
+}
+
+func (mp *MocP) GetInfo(key string) any {
+	val, ok := mp.metadata[key]
+	if !ok {
+		return nil
+	}
+
+	return val
 }
 
 func (mp *MocP) UpdateInfo() error {
