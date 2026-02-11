@@ -220,6 +220,14 @@ func (mp *MocP) TooglePause() error {
 	return nil
 }
 
+func (mp *MocP) GetLoopStatus() string {
+	return "None"
+}
+
+func (mp *MocP) GetShuffle() bool {
+	return false
+}
+
 func (mp *MocP) Seek(seconds int) error {
 	if mp == nil {
 		return nil
@@ -292,13 +300,15 @@ func (mp *MocP) GetPlaybackStatus() string {
 // func (mp *MocP) GetLoopStatus(val string)
 // func (mp *MocP) SetLoopStatus(val string)
 
-func (mp *MocP) SetRate(val float64) {
+func (mp *MocP) SetRate(val float64) error {
 	if mp == nil {
-		return
+		return nil
 	}
 	if val == 0 {
-		mp.Pause()
+		return mp.Pause()
 	}
+
+	return nil
 }
 
 // func (mp *MocP) GetShuffle
@@ -376,6 +386,26 @@ func (mp *MocP) CanGoPrev() bool {
 }
 
 func (mp *MocP) CanPlay() bool {
+	if mp == nil {
+		return false
+	}
+	if _, ok := mp.metadata[SongTitle]; ok {
+		return true
+	}
+	return false
+}
+
+func (mp *MocP) CanPause() bool {
+	if mp == nil {
+		return false
+	}
+	if _, ok := mp.metadata[SongTitle]; ok {
+		return true
+	}
+	return false
+}
+
+func (mp *MocP) CanSeek() bool {
 	if mp == nil {
 		return false
 	}
