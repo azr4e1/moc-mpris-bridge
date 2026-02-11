@@ -79,6 +79,7 @@ func (mp2p *MediaPlayer2Player) exportProps() (map[string]any, *prop.Properties,
 
 func (mp2p *MediaPlayer2Player) update() *dbus.Error {
 	mp2p.lock.Lock()
+	defer mp2p.lock.Unlock()
 	err := mp2p.mp.UpdateInfo()
 	if err != nil {
 		return dbus.MakeFailedError(err)
@@ -91,8 +92,15 @@ func (mp2p *MediaPlayer2Player) update() *dbus.Error {
 			log.Printf("MediaPlayer2.Player.%s was updated\n", key)
 		}
 	}
-	mp2p.lock.Unlock()
 	return nil
+}
+
+func (mp2p *MediaPlayer2Player) getInfo(key string) any {
+	mp2p.lock.Lock()
+	val := mp2p.mp.GetInfo(key)
+	mp2p.lock.Unlock()
+
+	return val
 }
 
 func (mp2p *MediaPlayer2Player) getCurrVal(key string) any {
@@ -221,7 +229,7 @@ func (mp2p *MediaPlayer2Player) Seek(microseconds int64) *dbus.Error {
 		return dbus.MakeFailedError(err)
 	}
 
-	current_seconds, ok := mp2p.mp.GetInfo(CurrentSec).(int)
+	current_seconds, ok := mp2p.getInfo(CurrentSec).(int)
 	if !ok {
 		return nil
 	}
@@ -231,15 +239,19 @@ func (mp2p *MediaPlayer2Player) Seek(microseconds int64) *dbus.Error {
 		return dbus.MakeFailedError(err)
 	}
 
-	err = mp2p.mp.UpdateInfo()
-	if err != nil {
-		return dbus.MakeFailedError(err)
+	errUpdate := mp2p.update()
+	if errUpdate != nil {
+		return errUpdate
 	}
 
 	return nil
 }
 
 func (mp2p *MediaPlayer2Player) SetPosition(trackId dbus.ObjectPath, microseconds int64) *dbus.Error {
+	if !mp2p.getCanSeek() {
+		log.Println("MediaPlayer2.Player.SetPosition is not allowed")
+		return nil
+	}
 	log.Println("MediaPlayer2.Player.SetPosition was called")
 	seconds := int(microseconds) / 1000000
 	err := mp2p.mp.Jump(seconds)
@@ -252,9 +264,9 @@ func (mp2p *MediaPlayer2Player) SetPosition(trackId dbus.ObjectPath, microsecond
 		return dbus.MakeFailedError(err)
 	}
 
-	err = mp2p.mp.UpdateInfo()
-	if err != nil {
-		return dbus.MakeFailedError(err)
+	errUpdate := mp2p.update()
+	if errUpdate != nil {
+		return errUpdate
 	}
 
 	return nil
