@@ -1,4 +1,4 @@
-module github.com/azre1/moc-mpris
+module github.com/azre1/moc-mpris-bridge
 
 go 1.25.7
 
