@@ -2,6 +2,7 @@ package main
 
 import (
 	"errors"
+	"fmt"
 	"math"
 	"os/exec"
 	"regexp"
@@ -414,7 +415,10 @@ func (mp *MocP) CanSeek() bool {
 		return false
 	}
 	if _, ok := mp.metadata[CurrentSec]; ok {
-		return true
+		val, ok := mp.metadata[State]
+		if ok && val == "PLAY" {
+			return true
+		}
 	}
 	return false
 }
@@ -435,7 +439,9 @@ func (mp *MocP) UpdateInfo() error {
 	cmd := exec.Command("mocp", "-i")
 	data, err := cmd.CombinedOutput()
 	if err != nil {
-		return err
+		// mocp crashed, treat it as stopped
+		clear(mp.metadata)
+		return nil
 	}
 	// clean metadata
 	clear(mp.metadata)
