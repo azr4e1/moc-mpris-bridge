@@ -1,18 +1,17 @@
-# Maintainer: Your Name <your@email.com>
 pkgname=moc-mpris-bridge
-pkgver=1.0.0
+pkgver=0.1.0
 pkgrel=1
-pkgdesc="MPRIS bridge for Music on Console"
+pkgdesc="MPRIS bridge for Music On Console"
 arch=('x86_64' 'aarch64')
 url="https://github.com/azr4e1/moc-mpris-bridge"
-license=('MIT')  # adjust to your license
+license=('MIT')
 depends=('moc-pulse')
 makedepends=('go')
 source=("$pkgname-$pkgver.tar.gz::$url/archive/v$pkgver.tar.gz")
-sha256sums=('SKIP')  # run updpkgsums after first build
+sha256sums=('SKIP')  # temporary
 
 build() {
-    cd "$pkgname-$pkgver"
+    cd "$pkgname-$pkgver"  # GitHub creates this directory
     export CGO_CPPFLAGS="${CPPFLAGS}"
     export CGO_CFLAGS="${CFLAGS}"
     export CGO_CXXFLAGS="${CXXFLAGS}"
@@ -24,8 +23,7 @@ build() {
 package() {
     cd "$pkgname-$pkgver"
     install -Dm755 "$pkgname" "$pkgdir/usr/bin/$pkgname"
-    
-    # optional: install systemd user service
     install -Dm644 "$pkgname.service" \
         "$pkgdir/usr/lib/systemd/user/$pkgname.service"
+    install -Dm644 LICENSE "$pkgdir/usr/share/licenses/$pkgname/LICENSE"
 }

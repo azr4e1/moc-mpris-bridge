@@ -1,0 +1,11 @@
+version: 2
+builds:
+  - main: ./main.go
+    binary: moc-mpris-bridge
+    goos:
+      - linux
+    goarch:
+      - amd64
+      - arm64
+archives:
+  - format: tar.gz
