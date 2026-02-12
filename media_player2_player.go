@@ -96,9 +96,11 @@ func (mp2p *MediaPlayer2Player) update() *dbus.Error {
 }
 
 func (mp2p *MediaPlayer2Player) getInfo(key string) any {
-	mp2p.lock.Lock()
-	val := mp2p.mp.GetInfo(key)
-	mp2p.lock.Unlock()
+	val, ok := mp2p.mp.SafeGetInfo(key)
+
+	if !ok {
+		return nil
+	}
 
 	return val
 }

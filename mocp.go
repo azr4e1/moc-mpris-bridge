@@ -10,6 +10,7 @@ import (
 	"regexp"
 	"strconv"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/dhowden/tag"
@@ -17,6 +18,7 @@ import (
 )
 
 type MocP struct {
+	lock     sync.Mutex
 	metadata map[string]any
 }
 
@@ -58,6 +60,7 @@ var mocpInfoKeys = map[string]bool{
 func NewMocP() (*MocP, error) {
 	metadata := make(map[string]any)
 	mp := &MocP{metadata: metadata}
+	mp.lock = sync.Mutex{}
 	err := mp.UpdateInfo()
 	if err != nil {
 		return nil, err
@@ -211,6 +214,8 @@ func (mp *MocP) TogglePause() error {
 	if mp == nil {
 		return nil
 	}
+	// TODO: consider making this atomic to avoid
+	// TOCTOU race condition
 	state := mp.GetPlaybackStatus()
 	switch state {
 	case "Playing":
@@ -265,7 +270,9 @@ func (mp *MocP) Jump(seconds int) error {
 	if mp == nil {
 		return nil
 	}
-	totSec, ok := mp.metadata[TotalSec]
+	mp.lock.Lock()
+	totSec, ok := mp.getInfo(TotalSec)
+	mp.lock.Unlock()
 	if !ok {
 		return nil
 	}
@@ -288,7 +295,9 @@ func (mp *MocP) GetPlaybackStatus() string {
 	if mp == nil {
 		return ""
 	}
-	state, ok := mp.metadata[State]
+	mp.lock.Lock()
+	defer mp.lock.Unlock()
+	state, ok := mp.getInfo(State)
 	if !ok {
 		return "Stopped"
 	}
@@ -325,24 +334,26 @@ func (mp *MocP) GetMetadata() map[string]any {
 	if mp == nil {
 		return nil
 	}
+	mp.lock.Lock()
+	defer mp.lock.Unlock()
 	metadata := make(map[string]any)
 
-	if val, ok := mp.metadata[TotalSec]; ok {
+	if val, ok := mp.getInfo(TotalSec); ok {
 		metadata["mpris:length"] = int64(val.(int)) * 1000000
 	}
-	if val, ok := mp.metadata[File]; ok {
+	if val, ok := mp.getInfo(File); ok {
 		metadata["xesam:url"] = val
 	}
-	if val, ok := mp.metadata[ArtURI]; ok {
+	if val, ok := mp.getInfo(ArtURI); ok {
 		metadata["mpris:artUrl"] = val
 	}
-	if val, ok := mp.metadata[SongTitle]; ok {
+	if val, ok := mp.getInfo(SongTitle); ok {
 		metadata["xesam:title"] = val
 	}
-	if val, ok := mp.metadata[Artist]; ok {
+	if val, ok := mp.getInfo(Artist); ok {
 		metadata["xesam:artist"] = val
 	}
-	if val, ok := mp.metadata[Album]; ok {
+	if val, ok := mp.getInfo(Album); ok {
 		metadata["xesam:album"] = val
 	}
 	metadata["mpris:trackid"] = dbus.ObjectPath("/org/moc_mpris_bridge/track/1")
@@ -369,7 +380,13 @@ func (mp *MocP) GetPosition() int {
 	if mp == nil {
 		return 0
 	}
-	currSec, ok := mp.metadata[CurrentSec].(int)
+	mp.lock.Lock()
+	defer mp.lock.Unlock()
+	currSecAny, ok := mp.getInfo(CurrentSec)
+	if !ok {
+		return 0
+	}
+	currSec, ok := currSecAny.(int)
 	if !ok {
 		return 0
 	}
@@ -380,7 +397,9 @@ func (mp *MocP) CanGoNext() bool {
 	if mp == nil {
 		return false
 	}
-	if _, ok := mp.metadata[SongTitle]; ok {
+	mp.lock.Lock()
+	defer mp.lock.Unlock()
+	if _, ok := mp.getInfo(SongTitle); ok {
 		return true
 	}
 	return false
@@ -390,7 +409,9 @@ func (mp *MocP) CanGoPrev() bool {
 	if mp == nil {
 		return false
 	}
-	if _, ok := mp.metadata[SongTitle]; ok {
+	mp.lock.Lock()
+	defer mp.lock.Unlock()
+	if _, ok := mp.getInfo(SongTitle); ok {
 		return true
 	}
 	return false
@@ -400,7 +421,9 @@ func (mp *MocP) CanPlay() bool {
 	if mp == nil {
 		return false
 	}
-	if _, ok := mp.metadata[SongTitle]; ok {
+	mp.lock.Lock()
+	defer mp.lock.Unlock()
+	if _, ok := mp.getInfo(SongTitle); ok {
 		return true
 	}
 	return false
@@ -410,7 +433,9 @@ func (mp *MocP) CanPause() bool {
 	if mp == nil {
 		return false
 	}
-	if _, ok := mp.metadata[SongTitle]; ok {
+	mp.lock.Lock()
+	defer mp.lock.Unlock()
+	if _, ok := mp.getInfo(SongTitle); ok {
 		return true
 	}
 	return false
@@ -420,8 +445,10 @@ func (mp *MocP) CanSeek() bool {
 	if mp == nil {
 		return false
 	}
-	if _, ok := mp.metadata[CurrentSec]; ok {
-		val, ok := mp.metadata[State]
+	mp.lock.Lock()
+	defer mp.lock.Unlock()
+	if _, ok := mp.getInfo(CurrentSec); ok {
+		val, ok := mp.getInfo(State)
 		if ok && val == "PLAY" {
 			return true
 		}
@@ -429,19 +456,24 @@ func (mp *MocP) CanSeek() bool {
 	return false
 }
 
-func (mp *MocP) GetInfo(key string) any {
+func (mp *MocP) getInfo(key string) (any, bool) {
 	val, ok := mp.metadata[key]
-	if !ok {
-		return nil
-	}
+	return val, ok
+}
 
-	return val
+func (mp *MocP) SafeGetInfo(key string) (any, bool) {
+	mp.lock.Lock()
+	defer mp.lock.Unlock()
+	val, ok := mp.metadata[key]
+	return val, ok
 }
 
 func (mp *MocP) UpdateInfo() error {
 	if mp == nil {
 		return errors.New("must initialize mocp")
 	}
+	mp.lock.Lock()
+	defer mp.lock.Unlock()
 	cmd := exec.Command("mocp", "-i")
 	data, err := cmd.CombinedOutput()
 	if err != nil {
@@ -495,8 +527,14 @@ func (mp *MocP) cacheArtURI() (string, string) {
 	if mp == nil {
 		return "", ""
 	}
-	file, ok1 := mp.GetInfo(File).(string)
-	artURI, ok2 := mp.GetInfo(ArtURI).(string)
+	var file, artURI string
+	fileAny, ok1 := mp.getInfo(File)
+	artURIAny, ok2 := mp.getInfo(ArtURI)
+
+	if ok1 && ok2 {
+		file, ok1 = fileAny.(string)
+		artURI, ok2 = artURIAny.(string)
+	}
 
 	if ok1 && ok2 {
 		return file, artURI
