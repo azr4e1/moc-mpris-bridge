@@ -1,14 +1,18 @@
 package main
 
 import (
+	"encoding/base64"
 	"errors"
+	"fmt"
 	"math"
+	"os"
 	"os/exec"
 	"regexp"
 	"strconv"
 	"strings"
 	"time"
 
+	"github.com/dhowden/tag"
 	"github.com/godbus/dbus/v5"
 )
 
@@ -31,6 +35,7 @@ const (
 	Bitrate     = "Bitrate"
 	AvgBitrate  = "AvgBitrate"
 	Rate        = "Rate"
+	ArtURI      = "ArtURI"
 )
 
 var mocpInfoKeys = map[string]bool{
@@ -327,6 +332,8 @@ func (mp *MocP) GetMetadata() map[string]any {
 	}
 	if val, ok := mp.metadata[File]; ok {
 		metadata["xesam:url"] = val
+	}
+	if val, ok := mp.metadata[ArtURI]; ok {
 		metadata["mpris:artUrl"] = val
 	}
 	if val, ok := mp.metadata[SongTitle]; ok {
@@ -442,7 +449,8 @@ func (mp *MocP) UpdateInfo() error {
 		clear(mp.metadata)
 		return nil
 	}
-	// clean metadata
+	// clean metadata, but keep a copy of file and artURI to avoid reencoding
+	file, artURI := mp.cacheArtURI()
 	clear(mp.metadata)
 	lines := strings.SplitSeq(string(data), "\n")
 
@@ -455,13 +463,21 @@ func (mp *MocP) UpdateInfo() error {
 		val = strings.TrimSpace(val)
 		if _, ok := mocpInfoKeys[key]; ok {
 			switch key {
-			case "TotalTime", "TimeLeft", "CurrentTime":
+			case File:
+				// if file is the same, don't recalculate artwork
+				if val == file {
+					mp.metadata[ArtURI] = artURI
+				} else {
+					mp.metadata[ArtURI] = retrieveArtworkDataURI(val)
+				}
+				mp.metadata[File] = val
+			case TotalTime, TimeLeft, CurrentTime:
 				durationVal, err := parseDuration(val)
 				if err != nil {
 					return err
 				}
 				mp.metadata[key] = durationVal
-			case "TotalSec", "CurrentSec":
+			case TotalSec, CurrentSec:
 				secondVal, err := strconv.Atoi(val)
 				if err != nil {
 					return err
@@ -473,6 +489,20 @@ func (mp *MocP) UpdateInfo() error {
 		}
 	}
 	return nil
+}
+
+func (mp *MocP) cacheArtURI() (string, string) {
+	if mp == nil {
+		return "", ""
+	}
+	file, ok1 := mp.GetInfo(File).(string)
+	artURI, ok2 := mp.GetInfo(ArtURI).(string)
+
+	if ok1 && ok2 {
+		return file, artURI
+	}
+
+	return "", ""
 }
 
 func parseDuration(duration string) (time.Duration, error) {
@@ -519,4 +549,28 @@ func amixerGetVolume() (float64, error) {
 	}
 
 	return float64(volumes / len(matches)), nil
+}
+
+func retrieveArtworkDataURI(file string) string {
+	fd, err := os.Open(file)
+	if err != nil {
+		return ""
+	}
+	defer fd.Close()
+
+	m, err := tag.ReadFrom(fd)
+	if err != nil {
+		return ""
+	}
+
+	pic := m.Picture()
+	if pic == nil {
+		return ""
+	}
+
+	base64Encoding := base64.StdEncoding.EncodeToString(pic.Data)
+
+	uri := fmt.Sprintf("data:%s;base64,%s", pic.MIMEType, base64Encoding)
+
+	return uri
 }

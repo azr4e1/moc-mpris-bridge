@@ -76,4 +76,4 @@ The bridge polls MOC's status once per second via `mocp -i` and exposes the stat
 # TODO
 
 - [ ] Improve race conditions when reading mocp info
-- [ ] get track art through musicbrainz
+- [X] get track art through file metadata
