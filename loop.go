@@ -1,6 +1,8 @@
 package main
 
 import (
+	"errors"
+	"fmt"
 	"log"
 	"os"
 	"os/signal"
@@ -10,7 +12,7 @@ import (
 	"github.com/godbus/dbus/v5"
 )
 
-func MPRISLoop() error {
+func MPRISLoop(name string) error {
 	conn, err := dbus.ConnectSessionBus()
 	if err != nil {
 		return err
@@ -37,12 +39,12 @@ func MPRISLoop() error {
 	log.Println("MediaPlayer2.Player instance created")
 
 	// Register name
-	reply, err := conn.RequestName("org.mpris.MediaPlayer2.mocp-mpris-bridge", dbus.NameFlagReplaceExisting)
+	reply, err := conn.RequestName(fmt.Sprintf("org.mpris.MediaPlayer2.%s", name), dbus.NameFlagReplaceExisting)
 	if err != nil {
 		return err
 	}
 	if reply != dbus.RequestNameReplyPrimaryOwner {
-		return err
+		return errors.New("Name is already taken")
 	}
 	log.Println("mocp-mpris-bridge name successfully registered")
 
