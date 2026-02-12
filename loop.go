@@ -63,19 +63,27 @@ func MPRISLoop(name string) error {
 	c := make(chan os.Signal, 1)
 	signal.Notify(c, os.Interrupt, syscall.SIGINT)
 
-	go func() {
-		<-c
-		log.Println("Interruption...")
-		conn.Close()
-		os.Exit(1)
-	}()
-
 	log.Println("Starting loop...")
+
+	ticker := time.NewTicker(time.Second)
 	for {
-		err := mp2p.update()
-		if err != nil {
-			return err
+		select {
+		case dbusMethod := <-mp2p.commands:
+			// Dbus methods asked to do something
+			dbusMethod.result <- dbusMethod.action()
+			err := mp2p.update()
+			if err != nil {
+				return err
+			}
+		case <-ticker.C:
+			// poll every second
+			err := mp2p.update()
+			if err != nil {
+				return err
+			}
+		case <-c:
+			log.Println("Interruption...")
+			return nil
 		}
-		time.Sleep(time.Second)
 	}
 }

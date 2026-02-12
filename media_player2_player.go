@@ -4,26 +4,29 @@ import (
 	"errors"
 	"log"
 	"reflect"
-	"sync"
-	"time"
 
 	"github.com/godbus/dbus/v5"
 	"github.com/godbus/dbus/v5/prop"
 )
 
 type MediaPlayer2Player struct {
-	lock       sync.Mutex
 	mp         *MocP
 	conn       *dbus.Conn
 	propValues map[string]any
 	properties *prop.Properties
+	commands   chan command
+}
+
+type command struct {
+	action func() error
+	result chan error
 }
 
 func NewMediaPlayer2Player(conn *dbus.Conn, mp *MocP) (*MediaPlayer2Player, error) {
 	mp2p := &MediaPlayer2Player{}
-	mp2p.lock = sync.Mutex{}
 	mp2p.mp = mp
 	mp2p.conn = conn
+	mp2p.commands = make(chan command)
 
 	var err error
 	mp2p.propValues, mp2p.properties, err = mp2p.exportProps()
@@ -78,8 +81,6 @@ func (mp2p *MediaPlayer2Player) exportProps() (map[string]any, *prop.Properties,
 }
 
 func (mp2p *MediaPlayer2Player) update() *dbus.Error {
-	mp2p.lock.Lock()
-	defer mp2p.lock.Unlock()
 	err := mp2p.mp.UpdateInfo()
 	if err != nil {
 		return dbus.MakeFailedError(err)
@@ -95,8 +96,15 @@ func (mp2p *MediaPlayer2Player) update() *dbus.Error {
 	return nil
 }
 
+func (mp2p *MediaPlayer2Player) do(action func() error) error {
+	result := make(chan error, 1)
+	mp2p.commands <- command{action: action, result: result}
+
+	return <-result
+}
+
 func (mp2p *MediaPlayer2Player) getInfo(key string) any {
-	val, ok := mp2p.mp.SafeGetInfo(key)
+	val, ok := mp2p.mp.GetInfo(key)
 
 	if !ok {
 		return nil
@@ -144,131 +152,174 @@ func (mp2p *MediaPlayer2Player) getCurrVal(key string) any {
 
 // Methods
 func (mp2p *MediaPlayer2Player) Next() *dbus.Error {
-	if !mp2p.getCanGoNext() {
-		log.Println("MediaPlayer2.Player.Next is not allowed")
+	err := mp2p.do(func() error {
+		if !mp2p.getCanGoNext() {
+			log.Println("MediaPlayer2.Player.Next is not allowed")
+			return nil
+		}
+		log.Println("MediaPlayer2.Player.Next was called")
+		if err := mp2p.mp.Next(); err != nil {
+			return err
+		}
 		return nil
-	}
-	log.Println("MediaPlayer2.Player.Next was called")
-	err := mp2p.mp.Next()
+	})
+
 	if err != nil {
 		return dbus.MakeFailedError(err)
 	}
-	time.Sleep(time.Second / 2)
-	return mp2p.update()
+	return nil
 }
 
 func (mp2p *MediaPlayer2Player) Previous() *dbus.Error {
-	if !mp2p.getCanGoPrevious() {
-		log.Println("MediaPlayer2.Player.Previous is not allowed")
+	err := mp2p.do(func() error {
+		if !mp2p.getCanGoPrevious() {
+			log.Println("MediaPlayer2.Player.Previous is not allowed")
+			return nil
+		}
+		log.Println("MediaPlayer2.Player.Previous was called")
+		err := mp2p.mp.Previous()
+		if err != nil {
+			return err
+		}
 		return nil
-	}
-	log.Println("MediaPlayer2.Player.Previous was called")
-	err := mp2p.mp.Previous()
+	})
+
 	if err != nil {
 		return dbus.MakeFailedError(err)
 	}
-	time.Sleep(time.Second / 2)
-	return mp2p.update()
+	return nil
 }
 
 func (mp2p *MediaPlayer2Player) Pause() *dbus.Error {
-	if !mp2p.getCanPause() {
-		log.Println("MediaPlayer2.Player.Pause is not allowed")
+	err := mp2p.do(func() error {
+		if !mp2p.getCanPause() {
+			log.Println("MediaPlayer2.Player.Pause is not allowed")
+			return nil
+		}
+		log.Println("MediaPlayer2.Player.Pause was called")
+		err := mp2p.mp.Pause()
+		if err != nil {
+			return err
+		}
 		return nil
-	}
-	log.Println("MediaPlayer2.Player.Pause was called")
-	err := mp2p.mp.Pause()
+	})
 	if err != nil {
 		return dbus.MakeFailedError(err)
 	}
-	return mp2p.update()
+
+	return nil
 }
 
 func (mp2p *MediaPlayer2Player) PlayPause() *dbus.Error {
-	if !mp2p.getCanPlay() || !mp2p.getCanPause() {
-		log.Println("MediaPlayer2.Player.PlayPause is not allowed")
+	err := mp2p.do(func() error {
+		if !mp2p.getCanPlay() || !mp2p.getCanPause() {
+			log.Println("MediaPlayer2.Player.PlayPause is not allowed")
+			return nil
+		}
+		log.Println("MediaPlayer2.Player.PlayPause was called")
+		err := mp2p.mp.TogglePause()
+		if err != nil {
+			return err
+		}
 		return nil
-	}
-	log.Println("MediaPlayer2.Player.PlayPause was called")
-	err := mp2p.mp.TogglePause()
+	})
 	if err != nil {
 		return dbus.MakeFailedError(err)
 	}
-	return mp2p.update()
+
+	return nil
 }
 
 func (mp2p *MediaPlayer2Player) Stop() *dbus.Error {
-	log.Println("MediaPlayer2.Player.Stop was called")
-	err := mp2p.mp.Stop()
+	err := mp2p.do(func() error {
+		log.Println("MediaPlayer2.Player.Stop was called")
+		err := mp2p.mp.Stop()
+		if err != nil {
+			return err
+		}
+		return nil
+	})
 	if err != nil {
 		return dbus.MakeFailedError(err)
 	}
-	return mp2p.update()
+
+	return nil
 }
 
 func (mp2p *MediaPlayer2Player) Play() *dbus.Error {
-	if !mp2p.getCanPlay() {
-		log.Println("MediaPlayer2.Player.Play is not allowed")
+	err := mp2p.do(func() error {
+		if !mp2p.getCanPlay() {
+			log.Println("MediaPlayer2.Player.Play is not allowed")
+			return nil
+		}
+		log.Println("MediaPlayer2.Player.Play was called")
+		err := mp2p.mp.Unpause()
+		if err != nil {
+			return err
+		}
 		return nil
-	}
-	log.Println("MediaPlayer2.Player.Play was called")
-	err := mp2p.mp.Unpause()
+	})
 	if err != nil {
 		return dbus.MakeFailedError(err)
 	}
-	return mp2p.update()
+
+	return nil
 }
 
 func (mp2p *MediaPlayer2Player) Seek(microseconds int64) *dbus.Error {
-	if !mp2p.getCanSeek() {
-		log.Println("MediaPlayer2.Player.Seek is not allowed")
+	err := mp2p.do(func() error {
+		if !mp2p.getCanSeek() {
+			log.Println("MediaPlayer2.Player.Seek is not allowed")
+			return nil
+		}
+		log.Println("MediaPlayer2.Player.Seek was called")
+		seconds := int(microseconds) / 1000000
+		err := mp2p.mp.Seek(seconds)
+		if err != nil {
+			return err
+		}
+
+		current_seconds, ok := mp2p.getInfo(CurrentSec).(int)
+		if !ok {
+			return nil
+		}
+		current_microseconds := int64(current_seconds+seconds) * 1000000
+		err = mp2p.Seeked(current_microseconds)
+		if err != nil {
+			return err
+		}
 		return nil
-	}
-	log.Println("MediaPlayer2.Player.Seek was called")
-	seconds := int(microseconds) / 1000000
-	err := mp2p.mp.Seek(seconds)
+	})
+
 	if err != nil {
 		return dbus.MakeFailedError(err)
-	}
-
-	current_seconds, ok := mp2p.getInfo(CurrentSec).(int)
-	if !ok {
-		return nil
-	}
-	current_microseconds := int64(current_seconds+seconds) * 1000000
-	err = mp2p.Seeked(current_microseconds)
-	if err != nil {
-		return dbus.MakeFailedError(err)
-	}
-
-	errUpdate := mp2p.update()
-	if errUpdate != nil {
-		return errUpdate
 	}
 
 	return nil
 }
 
 func (mp2p *MediaPlayer2Player) SetPosition(trackId dbus.ObjectPath, microseconds int64) *dbus.Error {
-	if !mp2p.getCanSeek() {
-		log.Println("MediaPlayer2.Player.SetPosition is not allowed")
+	err := mp2p.do(func() error {
+		if !mp2p.getCanSeek() {
+			log.Println("MediaPlayer2.Player.SetPosition is not allowed")
+			return nil
+		}
+		log.Println("MediaPlayer2.Player.SetPosition was called")
+		seconds := int(microseconds) / 1000000
+		err := mp2p.mp.Jump(seconds)
+		if err != nil {
+			return err
+		}
+
+		err = mp2p.Seeked(microseconds)
+		if err != nil {
+			return err
+		}
 		return nil
-	}
-	log.Println("MediaPlayer2.Player.SetPosition was called")
-	seconds := int(microseconds) / 1000000
-	err := mp2p.mp.Jump(seconds)
+	})
+
 	if err != nil {
 		return dbus.MakeFailedError(err)
-	}
-
-	err = mp2p.Seeked(microseconds)
-	if err != nil {
-		return dbus.MakeFailedError(err)
-	}
-
-	errUpdate := mp2p.update()
-	if errUpdate != nil {
-		return errUpdate
 	}
 
 	return nil
@@ -286,7 +337,7 @@ func (mp2p *MediaPlayer2Player) Seeked(position int64) error {
 // Properties
 
 func (mp2p *MediaPlayer2Player) getPlaybackStatus() string {
-	return mp2p.mp.SafeGetPlaybackStatus()
+	return mp2p.mp.GetPlaybackStatus()
 }
 
 func (mp2p *MediaPlayer2Player) getLoopStatus() string {
