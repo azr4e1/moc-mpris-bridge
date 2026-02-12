@@ -214,9 +214,12 @@ func (mp *MocP) TogglePause() error {
 	if mp == nil {
 		return nil
 	}
-	// TODO: consider making this atomic to avoid
-	// TOCTOU race condition
-	state := mp.GetPlaybackStatus()
+	// We use the unsage version of getPlaybackStatus
+	// to avoid a TOCTOU bug, when checking and
+	// acting are not a single atomic action
+	mp.lock.Lock()
+	defer mp.lock.Unlock()
+	state := mp.getPlaybackStatus()
 	switch state {
 	case "Playing":
 		err := mp.Pause()
@@ -291,12 +294,17 @@ func (mp *MocP) Pause() error {
 	return cmd.Run()
 }
 
-func (mp *MocP) GetPlaybackStatus() string {
+func (mp *MocP) SafeGetPlaybackStatus() string {
+	mp.lock.Lock()
+	defer mp.lock.Unlock()
+	val := mp.getPlaybackStatus()
+	return val
+}
+
+func (mp *MocP) getPlaybackStatus() string {
 	if mp == nil {
 		return ""
 	}
-	mp.lock.Lock()
-	defer mp.lock.Unlock()
 	state, ok := mp.getInfo(State)
 	if !ok {
 		return "Stopped"

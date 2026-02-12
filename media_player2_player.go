@@ -286,7 +286,7 @@ func (mp2p *MediaPlayer2Player) Seeked(position int64) error {
 // Properties
 
 func (mp2p *MediaPlayer2Player) getPlaybackStatus() string {
-	return mp2p.mp.GetPlaybackStatus()
+	return mp2p.mp.SafeGetPlaybackStatus()
 }
 
 func (mp2p *MediaPlayer2Player) getLoopStatus() string {
