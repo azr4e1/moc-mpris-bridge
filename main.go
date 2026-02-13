@@ -20,15 +20,15 @@ func main() {
 		fmt.Fprintf(os.Stderr, "  -v, -version\n")
 		fmt.Fprintf(os.Stderr, "        Print current version\n")
 		fmt.Fprintf(os.Stderr, "  -n, -name NAME\n")
-		fmt.Fprintf(os.Stderr, "        Register interface with NAME. Default: mocp-mpris-bridge\n")
+		fmt.Fprintf(os.Stderr, "        Register interface with NAME. Default: moc-mpris-bridge\n")
 	}
 
 	var version bool
 	var name string
 	flag.BoolVar(&version, "v", false, "print current version")
 	flag.BoolVar(&version, "version", false, "print current version")
-	flag.StringVar(&name, "n", "mocp-mpris-bridge", "register service with this name")
-	flag.StringVar(&name, "name", "mocp-mpris-bridge", "register service with this name")
+	flag.StringVar(&name, "n", "moc-mpris-bridge", "register service with this name")
+	flag.StringVar(&name, "name", "moc-mpris-bridge", "register service with this name")
 	flag.Parse()
 
 	if len(flag.Args()) > 0 {
