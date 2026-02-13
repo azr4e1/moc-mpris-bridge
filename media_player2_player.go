@@ -85,11 +85,18 @@ func (mp2p *MediaPlayer2Player) update() *dbus.Error {
 	if err != nil {
 		return dbus.MakeFailedError(err)
 	}
+	err = mp2p.triggerSeeked()
+	if err != nil {
+		return dbus.MakeFailedError(err)
+	}
 	for key, value := range mp2p.propValues {
 		newVal := mp2p.getCurrVal(key)
 		if !reflect.DeepEqual(newVal, value) {
 			mp2p.propValues[key] = newVal
-			mp2p.properties.Set("org.mpris.MediaPlayer2.Player", key, dbus.MakeVariant(newVal))
+			err := mp2p.properties.Set("org.mpris.MediaPlayer2.Player", key, dbus.MakeVariant(newVal))
+			if err != nil {
+				return err
+			}
 			log.Printf("MediaPlayer2.Player.%s was updated\n", key)
 		}
 	}
@@ -332,6 +339,27 @@ func (mp2p *MediaPlayer2Player) Seeked(position int64) error {
 	err := mp2p.conn.Emit("/org/mpris/MediaPlayer2", "org.mpris.MediaPlayer2.Player.Seeked", position)
 
 	return err
+}
+
+// check if position changed by more than 2 second ahead between updates,
+// or if position is smaller than the old position.
+// This may mean that mocp was seeked outside of DBus
+func (mp2p *MediaPlayer2Player) triggerSeeked() error {
+	oldPositionAny := mp2p.propValues["Position"]
+	oldPosition, ok := oldPositionAny.(int64)
+	if !ok {
+		return nil
+	}
+	position := mp2p.getPosition()
+
+	twoSeconds := int64(2000000)
+	if position-oldPosition >= twoSeconds || position < oldPosition {
+		err := mp2p.Seeked(position)
+		if err != nil {
+			return err
+		}
+	}
+	return nil
 }
 
 // Properties
