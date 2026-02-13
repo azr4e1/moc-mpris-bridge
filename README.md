@@ -70,7 +70,7 @@ The service file is available immediately if installing from AUR.
 
 ## How it works
 
-The bridge polls MOC's status once per second via `mocp -i` and exposes the state over D-Bus under the name `org.mpris.MediaPlayer2.mocp-mpris-bridge`. It implements both the `org.mpris.MediaPlayer2` and `org.mpris.MediaPlayer2.Player` interfaces, so any MPRIS-aware client can discover and control MOC.
+The bridge polls MOC's status once per second via `mocp -i` and exposes the state over D-Bus under the name `org.mpris.MediaPlayer2.moc-mpris-bridge`. It implements both the `org.mpris.MediaPlayer2` and `org.mpris.MediaPlayer2.Player` interfaces, so any MPRIS-aware client can discover and control MOC.
 
 
 # TODO

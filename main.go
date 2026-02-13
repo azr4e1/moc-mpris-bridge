@@ -37,7 +37,7 @@ func main() {
 	}
 
 	if version {
-		fmt.Printf("%s version %s", os.Args[0], VERSION)
+		fmt.Printf("%s version %s\n", os.Args[0], VERSION)
 		return
 	}
 	err := MPRISLoop(name)

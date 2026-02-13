@@ -46,7 +46,7 @@ func MPRISLoop(name string) error {
 	if reply != dbus.RequestNameReplyPrimaryOwner {
 		return errors.New("Name is already taken")
 	}
-	log.Println("mocp-mpris-bridge name successfully registered")
+	log.Printf("%s name successfully registered\n", name)
 
 	err = conn.Export(mp2, "/org/mpris/MediaPlayer2", "org.mpris.MediaPlayer2")
 	if err != nil {
