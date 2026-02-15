@@ -7,7 +7,7 @@ import (
 	"os"
 )
 
-const VERSION = "v0.3.2"
+const VERSION = "v0.3.3"
 
 func main() {
 	flag.Usage = func() {
