@@ -71,14 +71,12 @@ func MPRISLoop(name string) error {
 		case dbusMethod := <-mp2p.commands:
 			// Dbus methods asked to do something
 			dbusMethod.result <- dbusMethod.action()
-			err := mp2p.update()
-			if err != nil {
+			if err := mp2p.update(); err != nil {
 				return err
 			}
 		case <-ticker.C:
 			// poll every second
-			err := mp2p.update()
-			if err != nil {
+			if err := mp2p.update(); err != nil {
 				return err
 			}
 		case <-c:

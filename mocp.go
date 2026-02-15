@@ -4,6 +4,7 @@ import (
 	"encoding/base64"
 	"errors"
 	"fmt"
+	"log"
 	"math"
 	"os"
 	"os/exec"
@@ -446,6 +447,7 @@ func (mp *MocP) UpdateInfo() error {
 	data, err := cmd.CombinedOutput()
 	if err != nil {
 		// mocp crashed, treat it as stopped
+		log.Print("mocp crashed, resetting...")
 		clear(mp.metadata)
 		return nil
 	}

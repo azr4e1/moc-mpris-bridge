@@ -10,11 +10,12 @@ import (
 )
 
 type MediaPlayer2Player struct {
-	mp         *MocP
-	conn       *dbus.Conn
-	propValues map[string]any
-	properties *prop.Properties
-	commands   chan command
+	mp            *MocP
+	conn          *dbus.Conn
+	propValues    map[string]any
+	properties    *prop.Properties
+	commands      chan command
+	seekedEmitted bool
 }
 
 type command struct {
@@ -336,6 +337,7 @@ func (mp2p *MediaPlayer2Player) SetPosition(trackId dbus.ObjectPath, microsecond
 
 func (mp2p *MediaPlayer2Player) Seeked(position int64) error {
 	log.Println("MediaPlayer2.Player.Seeked was signalled")
+	mp2p.seekedEmitted = true
 	err := mp2p.conn.Emit("/org/mpris/MediaPlayer2", "org.mpris.MediaPlayer2.Player.Seeked", position)
 
 	return err
@@ -345,16 +347,49 @@ func (mp2p *MediaPlayer2Player) Seeked(position int64) error {
 // or if position is smaller than the old position.
 // This may mean that mocp was seeked outside of DBus
 func (mp2p *MediaPlayer2Player) triggerSeeked() error {
+	// first check if dbus triggered a seek or set position;
+	// in that case, reset the seekEmitted flag and ignore
+	if mp2p.seekedEmitted {
+		mp2p.seekedEmitted = false
+		return nil
+	}
 	oldPositionAny := mp2p.propValues["Position"]
 	oldPosition, ok := oldPositionAny.(int64)
 	if !ok {
 		return nil
 	}
-	position := mp2p.getPosition()
 
+	// check the file is the same, i.e. we
+	// haven't done a Next() or Previous()
+	fileAny := mp2p.getInfo(File)
+	file, ok := fileAny.(string)
+	if !ok {
+		return nil
+	}
+
+	oldMetadataAny, ok := mp2p.propValues["Metadata"]
+	if !ok {
+		return nil
+	}
+	oldMetadata, ok := oldMetadataAny.(map[string]any)
+	if !ok {
+		return nil
+	}
+	oldFile, ok := oldMetadata["xesam:url"].(string)
+	if !ok {
+		return nil
+	}
+
+	if file != oldFile {
+		return nil
+	}
+
+	position := mp2p.getPosition()
 	twoSeconds := int64(2000000)
 	if position-oldPosition >= twoSeconds || position < oldPosition {
+		log.Println("MediaPlayer2.Player.Seeked was signalled by external process")
 		err := mp2p.Seeked(position)
+		mp2p.seekedEmitted = false
 		if err != nil {
 			return err
 		}
